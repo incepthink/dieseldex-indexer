@@ -1,0 +1,18 @@
+# yaml-language-server: $schema=./node_modules/envio/fuel.schema.json
+name: envio-indexer
+ecosystem: fuel
+networks:
+  - id: 9889
+    start_block: 0
+    contracts:
+      - name: Diesel
+        address:
+          - 0x2a656954e61971662b9527dcf7838c3db79e641f60d986fab1a7d3ed64d73e38
+        abi_file_path: abis/mainnet/diesel-abi.json
+        handler: src/EventHandlers.ts
+        events:
+          - name: MintEvent
+          - name: BurnEvent
+          - name: CreatePoolEvent
+          - name: SwapEvent
+raw_events: true
