@@ -7,7 +7,7 @@ networks:
     contracts:
       - name: Diesel
         address:
-          - 0x2a656954e61971662b9527dcf7838c3db79e641f60d986fab1a7d3ed64d73e38
+          - 0x7c293b054938bedca41354203be4c08aec2c3466412cac803f4ad62abf22e476
         abi_file_path: abis/mainnet/diesel-abi.json
         handler: src/EventHandlers.ts
         events:

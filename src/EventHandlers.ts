@@ -817,6 +817,28 @@ Diesel.SwapEvent.handler(async ({ event, context }) => {
 
   const feeBP = poolId[2] ? 0.05 : 0.3;
 
+  let feeTx: number = 0;
+
+  if (event.params.asset_0_in > 0) {
+    let feeTxn = calculateFee(
+      event.params.pool_id,
+      event.params.asset_0_in,
+      AMM_FEES
+    );
+
+    feeTx = Number(toDecimal(new BN(feeTxn.toString()), pool.decimals_0));
+  } else if (event.params.asset_1_in > 0) {
+    let feeTxn = calculateFee(
+      event.params.pool_id,
+      event.params.asset_1_in,
+      AMM_FEES
+    );
+
+    feeTx = Number(toDecimal(new BN(feeTxn.toString()), pool.decimals_0));
+  }
+
+  console.log("FeeTX: ", feeTx);
+
   context.SwapDaily.set({
     id: dailySnapshotId,
     pool_id: poolId,
