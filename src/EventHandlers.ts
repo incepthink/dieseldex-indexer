@@ -322,8 +322,7 @@ async function calculatePoolTVL(
     if (pool.asset_0 === ETH_ID) {
       // ETH is token0
       // const ethAmt = Number(toDecimal(new BN(pool.reserve_0.toString()), pool.decimals_0))
-      const ethAmt =
-        (Number(pool.reserve_0) / 10 ** pool.decimals_0) * ETH_PRICE_USD;
+      const ethAmt = (Number(reserve0) / 10 ** pool.decimals_0) * ETH_PRICE_USD;
       console.log("Pool: ", pool.id);
 
       console.log("ETH amt USD", ethAmt);
@@ -335,11 +334,10 @@ async function calculatePoolTVL(
     } else {
       // ETH is token1
       //const ethAmt = Number(toDecimal(new BN(pool.reserve_1.toString()), pool.decimals_1))
-      const ethAmt =
-        (Number(pool.reserve_1) / 10 ** pool.decimals_1) * ETH_PRICE_USD;
+      const ethAmt = (Number(reserve1) / 10 ** pool.decimals_1) * ETH_PRICE_USD;
       console.log("Pool: ", pool.id);
       console.log("ETH amt USD", ethAmt);
-      console.log(pool.reserve_1.toString());
+      console.log(reserve1.toString());
       const tvlUSD = ethAmt * 2;
       console.log("TVL USD", tvlUSD);
 
@@ -352,7 +350,7 @@ async function calculatePoolTVL(
     if (pool.asset_0 === USDC_ID) {
       // USDC is token0
       const usdcAmt = Number(
-        toDecimal(new BN(pool.reserve_0.toString()), pool.decimals_0)
+        toDecimal(new BN(reserve0.toString()), pool.decimals_0)
       );
       const tvlUSD = usdcAmt * 2 * USDC_PRICE_USD;
 
@@ -360,7 +358,7 @@ async function calculatePoolTVL(
     } else {
       // USDC is token1
       const usdcAmt = Number(
-        toDecimal(new BN(pool.reserve_1.toString()), pool.decimals_1)
+        toDecimal(new BN(reserve1.toString()), pool.decimals_1)
       );
       const tvlUSD = usdcAmt * 2 * USDC_PRICE_USD;
 
@@ -374,7 +372,7 @@ async function calculatePoolTVL(
     if (pool.asset_0 === FUEL_ID) {
       // FUEL is token0
       const fuelAmt = Number(
-        toDecimal(new BN(pool.reserve_0.toString()), pool.decimals_0)
+        toDecimal(new BN(reserve0.toString()), pool.decimals_0)
       );
       const tvlUSD = fuelAmt * 2 * FUEL_PRICE_USD;
 
@@ -382,7 +380,7 @@ async function calculatePoolTVL(
     } else {
       // FUEL is token1
       const fuelAmt = Number(
-        toDecimal(new BN(pool.reserve_1.toString()), pool.decimals_1)
+        toDecimal(new BN(reserve1.toString()), pool.decimals_1)
       );
       const tvlUSD = fuelAmt * 2 * FUEL_PRICE_USD;
 
@@ -627,7 +625,7 @@ const setAssetExchangeRate = (
   exchange_rate_fuel: number | null
 ) => {
   context.Asset.set({
-    id: pool.asset_1,
+    id: asset?.id || "",
     exchange_rate_usdc: exchange_rate_usdc || asset?.exchange_rate_usdc || 0,
     exchange_rate_eth: exchange_rate_eth || asset?.exchange_rate_eth || 0,
     exchange_rate_fuel: exchange_rate_fuel || asset?.exchange_rate_fuel || 0,
@@ -653,12 +651,19 @@ const setExchangeRate = async (
   }
 
   if (pool.asset_0 === ETH_ID) {
+    console.log(pool.asset_0, Asset0);
+    console.log(pool.asset_1, Asset1);
+
     const asset = await context.Asset.get(pool.asset_1);
     const exchange_rate_eth = Asset0 / Asset1;
 
     setAssetExchangeRate(pool, asset, context, null, exchange_rate_eth, null);
   } else if (pool.asset_1 === ETH_ID) {
+    console.log(pool.asset_0, Asset0);
+    console.log(pool.asset_1, Asset1);
     const asset = await context.Asset.get(pool.asset_0);
+    console.log();
+
     const exchange_rate_eth = Asset1 / Asset0;
 
     setAssetExchangeRate(pool, asset, context, null, exchange_rate_eth, null);
@@ -675,6 +680,21 @@ const setExchangeRate = async (
 
     setAssetExchangeRate(pool, asset, context, null, null, exchange_rate_fuel);
   }
+};
+
+const getFeesUSD = async (
+  context: Context,
+  assetId: string,
+  amount: number
+) => {
+  if (assetId === ETH_ID) {
+    return amount * ETH_PRICE_USD;
+  }
+
+  const asset = await context.Asset.get(assetId);
+  const exchange_rate_eth = asset?.exchange_rate_eth;
+
+  return amount * exchange_rate_eth! * ETH_PRICE_USD;
 };
 
 Diesel.SwapEvent.handler(async ({ event, context }) => {
@@ -741,8 +761,8 @@ Diesel.SwapEvent.handler(async ({ event, context }) => {
 
     setExchangeRate(Asset0, Asset1, pool, context);
   } else if (event.params.asset_1_in > 0n) {
-    const Asset0 = Number(event.params.asset_1_in);
-    const Asset1 = Number(event.params.asset_0_out);
+    const Asset0 = Number(event.params.asset_0_out);
+    const Asset1 = Number(event.params.asset_1_in);
 
     setExchangeRate(Asset0, Asset1, pool, context);
   }
@@ -817,7 +837,7 @@ Diesel.SwapEvent.handler(async ({ event, context }) => {
 
   const feeBP = poolId[2] ? 0.05 : 0.3;
 
-  let feeTx: number = 0;
+  let feeUSD: number = 0;
 
   if (event.params.asset_0_in > 0) {
     let feeTxn = calculateFee(
@@ -825,19 +845,23 @@ Diesel.SwapEvent.handler(async ({ event, context }) => {
       event.params.asset_0_in,
       AMM_FEES
     );
+    console.log("fees on ", pool.asset_0);
 
-    feeTx = Number(toDecimal(new BN(feeTxn.toString()), pool.decimals_0));
+    const feeTx = Number(toDecimal(new BN(feeTxn.toString()), pool.decimals_0));
+
+    feeUSD = await getFeesUSD(context, pool.asset_0, feeTx);
   } else if (event.params.asset_1_in > 0) {
     let feeTxn = calculateFee(
       event.params.pool_id,
       event.params.asset_1_in,
       AMM_FEES
     );
-
-    feeTx = Number(toDecimal(new BN(feeTxn.toString()), pool.decimals_0));
+    console.log("fees on ", pool.asset_1);
+    const feeTx = Number(toDecimal(new BN(feeTxn.toString()), pool.decimals_0));
+    feeUSD = await getFeesUSD(context, pool.asset_1, feeTx);
   }
 
-  console.log("FeeTX: ", feeTx);
+  console.log("FeeUSD: $", feeUSD);
 
   context.SwapDaily.set({
     id: dailySnapshotId,
@@ -848,7 +872,7 @@ Diesel.SwapEvent.handler(async ({ event, context }) => {
     asset_0_out: (dailySnapshot?.asset_0_out ?? 0n) + event.params.asset_0_out,
     asset_1_in: (dailySnapshot?.asset_1_in ?? 0n) + event.params.asset_1_in,
     asset_1_out: (dailySnapshot?.asset_1_out ?? 0n) + event.params.asset_1_out,
-    feesUSD: (dailySnapshot?.feesUSD ?? 0) + Number(volume) * feeBP,
+    feesUSD: (dailySnapshot?.feesUSD ?? 0) + feeUSD,
     volume: (dailySnapshot?.volume ?? 0) + volume,
   });
 
@@ -861,7 +885,7 @@ Diesel.SwapEvent.handler(async ({ event, context }) => {
     asset_0_out: (hourlySnapshot?.asset_0_out ?? 0n) + event.params.asset_0_out,
     asset_1_in: (hourlySnapshot?.asset_1_in ?? 0n) + event.params.asset_1_in,
     asset_1_out: (hourlySnapshot?.asset_1_out ?? 0n) + event.params.asset_1_out,
-    feesUSD: (hourlySnapshot?.feesUSD ?? 0) + Number(volume) * feeBP,
+    feesUSD: (hourlySnapshot?.feesUSD ?? 0) + feeUSD,
     volume: (hourlySnapshot?.volume ?? 0) + volume,
   });
 
