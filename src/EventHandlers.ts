@@ -228,7 +228,11 @@ const calcVolume = (numerator: number, denominator: number, PRICE: number) => {
   return totalVol;
 };
 
-function getVolume(event: any, pool: Pool): number {
+async function getVolume(
+  event: any,
+  pool: Pool,
+  context: Context
+): Promise<number> {
   if (event.params.asset_0_in > 0n || event.params.asset_1_out > 0n) {
     if (pool.asset_0 === ETH_ID) {
       return calcVolume(
@@ -267,6 +271,21 @@ function getVolume(event: any, pool: Pool): number {
         FUEL_PRICE_USD
       );
     }
+
+    const asset_0_exrate = await context.Asset.get(pool.asset_0);
+    const asset_1_exrate = await context.Asset.get(pool.asset_1);
+
+    if (asset_0_exrate?.exchange_rate_eth) {
+      const eth_in =
+        Number(event.params.asset_0_in) * asset_0_exrate.exchange_rate_eth;
+
+      return calcVolume(eth_in, 10 ** 9, ETH_PRICE_USD);
+    } else if (asset_1_exrate?.exchange_rate_eth) {
+      const eth_in =
+        Number(event.params.asset_1_out) * asset_1_exrate.exchange_rate_eth;
+
+      return calcVolume(eth_in, 10 ** 9, ETH_PRICE_USD);
+    }
   } else if (event.params.asset_1_in > 0n || event.params.asset_0_out > 0n) {
     if (pool.asset_0 === ETH_ID) {
       return calcVolume(
@@ -304,6 +323,21 @@ function getVolume(event: any, pool: Pool): number {
         10 ** pool.decimals_1,
         FUEL_PRICE_USD
       );
+    }
+
+    const asset_0_exrate = await context.Asset.get(pool.asset_0);
+    const asset_1_exrate = await context.Asset.get(pool.asset_1);
+
+    if (asset_0_exrate?.exchange_rate_eth) {
+      const eth_in =
+        Number(event.params.asset_1_in) * asset_0_exrate.exchange_rate_eth;
+
+      return calcVolume(eth_in, 10 ** 9, ETH_PRICE_USD);
+    } else if (asset_1_exrate?.exchange_rate_eth) {
+      const eth_in =
+        Number(event.params.asset_0_out) * asset_1_exrate.exchange_rate_eth;
+
+      return calcVolume(eth_in, 10 ** 9, ETH_PRICE_USD);
     }
   }
   return 0;
@@ -386,6 +420,31 @@ async function calculatePoolTVL(
 
       return { tvl, tvlUSD: tvlUSD };
     }
+  }
+
+  // If not USDC, ETH, FUEL. get tvl by exchange rate
+  const asset_0_exrate = await context.Asset.get(pool.asset_0);
+  const asset_1_exrate = await context.Asset.get(pool.asset_1);
+
+  if (asset_0_exrate?.exchange_rate_eth) {
+    console.log(
+      "------------------------------------------------------------- asset0 psycho",
+      asset_0_exrate.exchange_rate_eth
+    );
+
+    const asset_0_amt_eth = Number(reserve0) * asset_0_exrate.exchange_rate_eth;
+    const asset_0_amt_norm = Number(toDecimal(new BN(asset_0_amt_eth), 9));
+    const asset_0_amt_usd = asset_0_amt_norm * ETH_PRICE_USD;
+    const tvl_usd = asset_0_amt_usd * 2;
+
+    return { tvl, tvlUSD: tvl_usd };
+  } else if (asset_1_exrate?.exchange_rate_eth) {
+    const asset_1_amt_eth = Number(reserve1) * asset_1_exrate.exchange_rate_eth;
+    const asset_1_amt_norm = Number(toDecimal(new BN(asset_1_amt_eth), 9));
+    const asset_1_amt_usd = asset_1_amt_norm * ETH_PRICE_USD;
+    const tvl_usd = asset_1_amt_usd * 2;
+
+    return { tvl, tvlUSD: tvl_usd };
   }
 
   return { tvl, tvlUSD: 0 };
@@ -767,7 +826,7 @@ Diesel.SwapEvent.handler(async ({ event, context }) => {
     setExchangeRate(Asset0, Asset1, pool, context);
   }
 
-  const volume = getVolume(event, pool);
+  const volume = await getVolume(event, pool, context);
 
   // const is_buy = event.params.asset_1_in > 0n;
   // const is_sell = event.params.asset_1_out > 0n
