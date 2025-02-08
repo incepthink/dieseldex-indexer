@@ -9,9 +9,14 @@ import {
   Transaction,
   Pool,
   Asset,
+  BridgeFungibleToken,
+  BridgeFungibleToken_TotalSupplyEvent_eventArgs,
+  Diesel_TotalSupplyEvent,
+  BridgeFungibleToken_TotalSupplyEvent,
 } from "generated";
 import { v4 as uuid } from "uuid";
 import BN from "bn.js";
+import * as util from "util";
 import axios from "axios";
 
 type IdentityIsContract = [string, boolean];
@@ -758,20 +763,6 @@ const getFeesUSD = async (
 
 Diesel.SwapEvent.handler(async ({ event, context }) => {
   const id = `${event.logIndex}_${event.transaction.id}_${event.block.height}`;
-  const rawEvent = {
-    id: id,
-    pool_id: poolIdToStr(event.params.pool_id),
-    recipient: identityToStr(event.params.recipient)[0],
-    asset_0_in: event.params.asset_0_in,
-    asset_1_in: event.params.asset_1_in,
-    asset_0_out: event.params.asset_0_out,
-    asset_1_out: event.params.asset_1_out,
-    logIndex: event.logIndex,
-    transactionId: event.transaction.id,
-    blockId: event.block.id,
-    blockHeight: event.block.height,
-  };
-  context.RawSwapEvent.set(rawEvent);
 
   context.log.info(
     `Handling SwapEvent for transaction ID: ${event.transaction.id}`
@@ -827,6 +818,39 @@ Diesel.SwapEvent.handler(async ({ event, context }) => {
   }
 
   const volume = await getVolume(event, pool, context);
+
+  const is_buy = event.params.asset_1_in > 0;
+  const is_sell = event.params.asset_1_out > 0;
+  let exchange_rate = BigInt(0);
+
+  try {
+    if (is_buy) {
+      exchange_rate = (new_reserve_1 * BigInt(10n ** 18n)) / new_reserve_0;
+    } else {
+      exchange_rate = (new_reserve_1 * BigInt(10n ** 18n)) / new_reserve_0;
+    }
+  } catch (e) {
+    console.log("Error calculating exchange rate", e);
+  }
+
+  const rawEvent = {
+    id: id,
+    pool_id: poolIdToStr(event.params.pool_id),
+    recipient: identityToStr(event.params.recipient)[0],
+    asset_0_in: event.params.asset_0_in,
+    time: event.block.time,
+    asset_1_in: event.params.asset_1_in,
+    asset_0_out: event.params.asset_0_out,
+    asset_1_out: event.params.asset_1_out,
+    logIndex: event.logIndex,
+    transaction_id: event.transaction.id,
+    blockId: event.block.id,
+    block_height: event.block.height,
+    exchange_rate: exchange_rate,
+    is_buy: is_buy,
+    is_sell: is_sell,
+  };
+  context.RawSwapEvent.set(rawEvent);
 
   // const is_buy = event.params.asset_1_in > 0n;
   // const is_sell = event.params.asset_1_out > 0n
@@ -978,4 +1002,56 @@ Diesel.SwapEvent.handler(async ({ event, context }) => {
       k_1: k1.toString(),
     });
   }
+});
+
+// BridgeFungibleToken.TotalSupplyEvent.handler(async ({ event, context }) => {
+//   console.log(
+//     "BridgeFungibleToken.TotalSupplyEvent.handler event",
+//     util.inspect(event, false, null, true /* enable colors */)
+//   );
+
+//   const entity: BridgeFungibleToken_TotalSupplyEvent_eventArgs = {
+//     id: `${event.chainId}_${event.block.height}_${event.logIndex}`,
+//     time: event.block.time,
+//     block_height: event.block.height,
+//     transaction_id: event.transaction.id,
+//     asset: event.params.asset.bits,
+//     supply: event.params.supply,
+//     sender: event.params.sender.payload.bits,
+//   };
+
+//   context.BridgeFungibleToken_TotalSupplyEvent.set(entity);
+// });
+
+Diesel.TotalSupplyEvent.handler(async ({ event, context }) => {
+  const entity: Diesel_TotalSupplyEvent = {
+    id: `${event.chainId}_${event.block.height}_${event.logIndex}`,
+    time: event.block.time,
+    block_height: event.block.height,
+    transaction_id: event.transaction.id,
+    asset: event.params.asset.bits,
+    supply: event.params.supply,
+    sender: event.params.sender.payload.bits,
+  };
+
+  context.Diesel_TotalSupplyEvent.set(entity);
+});
+
+BridgeFungibleToken.TotalSupplyEvent.handler(async ({ event, context }) => {
+  console.log(
+    "BridgeFungibleToken.TotalSupplyEvent.handler event",
+    util.inspect(event, false, null, true /* enable colors */)
+  );
+
+  const entity: BridgeFungibleToken_TotalSupplyEvent = {
+    id: `${event.chainId}_${event.block.height}_${event.logIndex}`,
+    time: event.block.time,
+    block_height: event.block.height,
+    transaction_id: event.transaction.id,
+    asset: event.params.asset.bits,
+    supply: event.params.supply,
+    sender: event.params.sender.payload.bits,
+  };
+
+  context.BridgeFungibleToken_TotalSupplyEvent.set(entity);
 });

@@ -120,9 +120,33 @@ type RawSwapEvent {
   asset_0_out: BigInt!
   asset_1_out: BigInt!
   logIndex: Int!
-  transactionId: String!
+  transaction_id: String!
   blockId: String!
-  blockHeight: Int!
+  block_height: Int!
+  exchange_rate: BigInt!
+  is_buy: Boolean!
+  is_sell: Boolean!
+  time: Int!
+}
+
+type BridgeFungibleToken_TotalSupplyEvent {
+  id: ID!
+  asset: String!
+  supply: BigInt!
+  sender: String!
+  time: Int!
+  block_height: Int!
+  transaction_id: String!
+}
+
+type Diesel_TotalSupplyEvent {
+  id: ID!
+  time: Int!
+  block_height: Int!
+  transaction_id: String!
+  asset: String!
+  supply: BigInt!
+  sender: String!
 }
 
 type CurveViolation {
