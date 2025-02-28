@@ -41,6 +41,7 @@ type Transaction {
   extra: String
   lp_id: String
   lp_amount: BigInt
+  time: Int!
 }
 
 type SwapDaily {

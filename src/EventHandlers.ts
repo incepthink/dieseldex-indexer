@@ -595,6 +595,7 @@ Diesel.MintEvent.handler(async ({ event, context }) => {
     lp_id: event.params.liquidity.id.bits,
     lp_amount: event.params.liquidity.amount,
     extra: undefined,
+    time: event.block.time,
   };
   await upsertTransaction(context, transaction);
 });
@@ -676,6 +677,7 @@ Diesel.BurnEvent.handler(async ({ event, context }) => {
     lp_id: event.params.liquidity.id.bits,
     lp_amount: event.params.liquidity.amount,
     extra: undefined,
+    time: event.block.time,
   };
   await upsertTransaction(context, transaction);
 });
@@ -915,6 +917,7 @@ Diesel.SwapEvent.handler(async ({ event, context }) => {
     lp_id: undefined,
     lp_amount: undefined,
     extra: undefined,
+    time: event.block.time,
   };
   await upsertTransaction(context, transaction);
 
