@@ -1039,7 +1039,7 @@ Diesel.TotalSupplyEvent.handler(async ({ event, context }) => {
 
   context.Diesel_TotalSupplyEvent.set(entity);
 });
-
+let to = true;
 BridgeFungibleToken.TotalSupplyEvent.handler(async ({ event, context }) => {
   console.log(
     "BridgeFungibleToken.TotalSupplyEvent.handler event",
